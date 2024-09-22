@@ -48,4 +48,10 @@ userSchema.pre("save",async function (next){
     next();
 });
 
+// Create Custom mongoose Method for password Checking
+
+userSchema.methods.isPasswordCorrect = async function (password){
+    return await bcrypt.compare(password,this.password);
+}
+
 export const userModel =  mongoose.model('users', userSchema);
