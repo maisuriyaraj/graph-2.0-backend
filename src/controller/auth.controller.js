@@ -59,8 +59,15 @@ export async function Login(request, response) {
         const access_token = await generateAccessToken(userDetails);
         const referesh_token = await generateRefereshToken(userDetails);
 
-        const collection = await authTokenModel.create({ user_id: userDetails._id, access_token: access_token, referesh_token: referesh_token });
-        const result = await collection.save();
+        const collectionToken = await authTokenModel.findOne({user_id: userDetails._id});
+        if(collectionToken){
+            await authTokenModel.findOneAndUpdate({user_id: userDetails._id},{$set:{
+                access_token: access_token, referesh_token: referesh_token
+            }});
+        }else{
+            const collection = await authTokenModel.create({ user_id: userDetails._id, access_token: access_token, referesh_token: referesh_token });
+            const result = await collection.save();
+        }
 
         // Send Cookies 
         // 1. Generate Options
@@ -140,7 +147,17 @@ export async function Registration(request, response) {
 
 export async function LogoutUser(request,response){
     try {
-        
+        const expireAuthToken = await authTokenModel.findOneAndUpdate({user_id : request.user_id},{$set : {
+            referesh_token : null
+        }},{
+            new : true
+        });
+
+        const options = {
+            httpOnly : true,
+            secure : true
+        }
+        return response.status(200).clearCookie("access_token",options).clearCookie("referesh_token",options).json( new APIResponse(200,{},"User Loggedout Successfully !"));
     } catch (error) {
         console.log("Logout User Error : " , error);
         return response.status(405).json(new APIResponse(405,{},"Something went Wrong !"))
