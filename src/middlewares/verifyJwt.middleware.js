@@ -5,7 +5,7 @@ import APIResponse from '../utils/apiResponse.js';
 export function verifyJWT(request,response,next){
     try {
         if(request.headers["authorization"]){
-            let mainToken = request.header("Authorization").split(" ")[1];
+            let mainToken = request?.cookies?.accessToken ||  request.header("Authorization").split(" ")[1];
             let isVerified = jwt.verify(mainToken,process.env.ACCESS_TOKEN_SECREATE)
             if(!isVerified){
                 return response.status(403).json(new APIResponse(403,{},"Invalid Access Token !"));

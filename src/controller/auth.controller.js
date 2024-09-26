@@ -1,3 +1,4 @@
+import jwt from 'jsonwebtoken';
 import { authTokenModel } from "../models/authTokens.model.js";
 import { userModel } from "../models/users.model.js";
 import APIResponse from "../utils/apiResponse.js";
@@ -160,6 +161,47 @@ export async function LogoutUser(request,response){
         return response.status(200).clearCookie("access_token",options).clearCookie("referesh_token",options).json( new APIResponse(200,{},"User Loggedout Successfully !"));
     } catch (error) {
         console.log("Logout User Error : " , error);
-        return response.status(405).json(new APIResponse(405,{},"Something went Wrong !"))
+        return response.status(405).json(new APIResponse(405,{},"Something went Wrong !"));
+    }
+}
+
+export async function regenerateAccessToken(request,response){
+    try {
+        const incomingRefereshToken =  request?.body?.referesh_token ;
+        if(!incomingRefereshToken){
+            return response.status(403).json(new APIResponse(403,{},"Please Provide Referesh Token !"));
+        }
+
+        let varifiedToken = jwt.verify(incomingRefereshToken,process.env.REFERESH_TOKEN_SECREATE);
+
+        if(!varifiedToken){
+            return response.status(403).json(new APIResponse(403,{},"Unauthorized Request !"));
+        }
+
+        const options = {
+            httpOnly: true, // It is Modifiable only from server
+            secure: true // It is Modifiable only from server
+        };
+
+        let user = await userModel.findOne({_id:varifiedToken.userID}).select("-password");
+
+        if(!user){
+            return response.status(403).json(new APIResponse(403,{},"Unauthorized Access !"));
+        }
+
+        let newRefereshToken = await generateRefereshToken(user);
+        let newAccessToken = await generateAccessToken(user);
+
+        let collection = await authTokenModel.findOneAndUpdate({user_id:user._id},{$set:{access_token:newAccessToken}},{new : true});
+
+        return response.status(201).cookie("access_token", newAccessToken, options).cookie("referesh_token", collection.referesh_token, options).json(new APIResponse(201,{
+            access_token : newAccessToken,
+            
+        },"New Access Token Generated Successfully !"));
+
+      
+    } catch (error) {
+        console.log("Regenerate Access Token Error : " , error);
+        return response.status(405).json(new APIResponse(405,{},"Something went Wrong !"));
     }
 }
