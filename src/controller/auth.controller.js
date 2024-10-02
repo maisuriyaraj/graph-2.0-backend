@@ -3,6 +3,8 @@ import { authTokenModel } from "../models/authTokens.model.js";
 import { userModel } from "../models/users.model.js";
 import APIResponse from "../utils/apiResponse.js";
 import { generateAccessToken, generateRefereshToken } from "../utils/generateTokens.js";
+import { forgotPasswordMailTemplate } from '../utils/emailTemplates.js';
+import { sendEmailService } from '../utils/emailService.js';
 
 export async function Login(request, response) {
     try {
@@ -200,6 +202,46 @@ export async function regenerateAccessToken(request,response){
         },"New Access Token Generated Successfully !"));
 
       
+    } catch (error) {
+        console.log("Regenerate Access Token Error : " , error);
+        return response.status(405).json(new APIResponse(405,{},"Something went Wrong !"));
+    }
+}
+
+export async function forgotPasswordMail(request,response){
+    try {
+        
+        // Get user Email from req.body
+        // Check the Email is Registered or not 
+        // If teh email is Registered than Send Link for Reset password Via Email
+
+        const {email} = request.body;
+        if(!email){
+            return response.status(403).json(new APIResponse(403,{},"Email is Required !"));
+        }
+        const registeredUser = await userModel.findOne({email:email}).select('-password -groups -communities -posts -queries');
+
+        if(!registeredUser){
+            return response.status(403).json(new APIResponse(403,{},"User is Not Registered !"));
+        }
+
+        const authTokens = await authTokenModel.findOne({user_id : registeredUser._id});
+
+        const payload = {
+            userName : registeredUser.userName,
+            access_token : authTokens.access_token
+        }
+
+        let emailTemplate = forgotPasswordMailTemplate(payload);
+
+        /**
+         * Send Email to the User
+         */
+
+        sendEmailService(email,emailTemplate);
+
+        return response.status(201).json(new APIResponse(201,{},"Email Sent Successfully !"));
+
     } catch (error) {
         console.log("Regenerate Access Token Error : " , error);
         return response.status(405).json(new APIResponse(405,{},"Something went Wrong !"));

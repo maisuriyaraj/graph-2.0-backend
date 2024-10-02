@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { Login, LogoutUser, regenerateAccessToken, Registration } from "../controller/auth.controller.js";
+import { forgotPasswordMail, Login, LogoutUser, regenerateAccessToken, Registration } from "../controller/auth.controller.js";
 import { verifyJWT } from "../middlewares/verifyJwt.middleware.js";
 
 const authRoute = Router();
@@ -7,6 +7,7 @@ const authRoute = Router();
 authRoute.route('/login').post(Login);
 authRoute.route('/register').post(Registration);
 authRoute.route('/refereshAccessToken').post(regenerateAccessToken);
+authRoute.route('/forgotPasswordMail').post(forgotPasswordMail);
 /**
  * Secure Routes
  */
