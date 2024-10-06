@@ -14,6 +14,7 @@ const userSchema = new mongoose.Schema({
     password: { type: String , required:true },
     googleAccount: { type: Boolean, default: false },
     phone_number: { type: String, default: null },
+    TwoFAEnabled : { type : Boolean,default : false},
     profile_picture: { type: String, default: null },
     background_cover: { type: String, default: null },
     bio: { type: String, default: null },

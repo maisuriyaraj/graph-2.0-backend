@@ -6,6 +6,17 @@ import { generateAccessToken, generateRefereshToken } from "../utils/generateTok
 import { forgotPasswordMailTemplate } from '../utils/emailTemplates.js';
 import { sendEmailService } from '../utils/emailService.js';
 
+const CookieOptions = {
+    httpOnly: false, // It is Modifiable only from server
+    secure: false // It is Modifiable only from server
+}
+
+/**
+ * @description This Method is for Login
+ * @param {*} request 
+ * @param {*} response 
+ * @returns JSON RESPONSE TO USER
+ */
 export async function Login(request, response) {
     try {
         /**
@@ -74,14 +85,11 @@ export async function Login(request, response) {
 
         // Send Cookies 
         // 1. Generate Options
-        const options = {
-            httpOnly: true, // It is Modifiable only from server
-            secure: true // It is Modifiable only from server
-        }
+       
 
         const mainUserDetails = await userModel.findById(userDetails._id).select("-password -groups -communities -queries -posts -bio -background_cover -profile_picture -phone_number -googleAccount");
 
-        return response.status(201).cookie("access_token", access_token, options).cookie("referesh_token", referesh_token, options).json(
+        return response.status(201).cookie("access_token", access_token, CookieOptions).cookie("referesh_token", referesh_token, CookieOptions).json(
             new APIResponse(201, {
                 user: mainUserDetails,
                 access_token,
@@ -95,6 +103,12 @@ export async function Login(request, response) {
     }
 }
 
+/**
+ * @description This Method is for Registration User
+ * @param {*} request 
+ * @param {*} response 
+ * @returns JSON RESPONSE TO USER
+ */
 export async function Registration(request, response) {
     try {
         /**
@@ -147,7 +161,12 @@ export async function Registration(request, response) {
     }
 }
 
-
+/**
+ * @description This Method is for Logout User
+ * @param {*} request 
+ * @param {*} response 
+    @returns JSON RESPONSE TO USER
+ */
 export async function LogoutUser(request,response){
     try {
         const expireAuthToken = await authTokenModel.findOneAndUpdate({user_id : request.user_id},{$set : {
@@ -155,18 +174,19 @@ export async function LogoutUser(request,response){
         }},{
             new : true
         });
-
-        const options = {
-            httpOnly : true,
-            secure : true
-        }
-        return response.status(200).clearCookie("access_token",options).clearCookie("referesh_token",options).json( new APIResponse(200,{},"User Loggedout Successfully !"));
+        return response.status(200).clearCookie("access_token",CookieOptions).clearCookie("referesh_token",CookieOptions).json( new APIResponse(200,{},"User Loggedout Successfully !"));
     } catch (error) {
         console.log("Logout User Error : " , error);
         return response.status(405).json(new APIResponse(405,{},"Something went Wrong !"));
     }
 }
 
+/**
+ * @description Regenerate Access token 
+ * @param {*} request 
+ * @param {*} response 
+ * @returns JSON RESPONSE TO USER
+ */
 export async function regenerateAccessToken(request,response){
     try {
         const incomingRefereshToken =  request?.body?.referesh_token ;
@@ -180,11 +200,6 @@ export async function regenerateAccessToken(request,response){
             return response.status(403).json(new APIResponse(403,{},"Unauthorized Request !"));
         }
 
-        const options = {
-            httpOnly: true, // It is Modifiable only from server
-            secure: true // It is Modifiable only from server
-        };
-
         let user = await userModel.findOne({_id:varifiedToken.userID}).select("-password");
 
         if(!user){
@@ -196,7 +211,7 @@ export async function regenerateAccessToken(request,response){
 
         let collection = await authTokenModel.findOneAndUpdate({user_id:user._id},{$set:{access_token:newAccessToken}},{new : true});
 
-        return response.status(201).cookie("access_token", newAccessToken, options).cookie("referesh_token", collection.referesh_token, options).json(new APIResponse(201,{
+        return response.status(201).cookie("access_token", newAccessToken, CookieOptions).cookie("referesh_token", collection.referesh_token, CookieOptions).json(new APIResponse(201,{
             access_token : newAccessToken,
             
         },"New Access Token Generated Successfully !"));
@@ -208,6 +223,12 @@ export async function regenerateAccessToken(request,response){
     }
 }
 
+/**
+ * @description Send ResetPassword link to user
+ * @param {*} request 
+ * @param {*} response 
+ * @returns @returns JSON RESPONSE TO USER
+ */
 export async function forgotPasswordMail(request,response){
     try {
         
@@ -245,5 +266,49 @@ export async function forgotPasswordMail(request,response){
     } catch (error) {
         console.log("Regenerate Access Token Error : " , error);
         return response.status(405).json(new APIResponse(405,{},"Something went Wrong !"));
+    }
+}
+
+/**
+ * @description To Reset user Password
+ * @param {*} request 
+ * @param {*} response 
+ * @returns JSON RESPONSE TO USER
+ */
+export async function resetPassword(request,response){
+    try {
+        
+    } catch (error) {
+        
+    }
+}
+
+/**
+ * @description Send 2FA OTP mail
+ * @param {*} request 
+ * @param {*} response 
+ * @returns JSON RESPONSE TO USER
+ */
+
+export async function Send2FAOTPMail(request,response){
+    try {
+        
+    } catch (error) {
+        
+    }
+}
+
+/**
+ * @description Verify 2FA OTP
+ * @param {*} request 
+ * @param {*} response 
+ * @returns JSON RESPONSE TO USER
+ */
+
+export async function Verify2FAOtp(request,response){
+    try {
+        
+    } catch (error) {
+        
     }
 }
