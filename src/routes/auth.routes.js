@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { forgotPasswordMail, Login, LogoutUser, regenerateAccessToken, Registration } from "../controller/auth.controller.js";
+import { forgotPasswordMail, Login, LogoutUser, regenerateAccessToken, Registration, resetPassword } from "../controller/auth.controller.js";
 import { verifyJWT } from "../middlewares/verifyJwt.middleware.js";
 
 const authRoute = Router();
@@ -13,6 +13,7 @@ authRoute.route('/forgotPasswordMail').post(forgotPasswordMail);
  */
 
 authRoute.route('/logout').post(verifyJWT,LogoutUser);
+authRoute.route('/resetPassword').post(verifyJWT,resetPassword);
 
 export {authRoute};
 

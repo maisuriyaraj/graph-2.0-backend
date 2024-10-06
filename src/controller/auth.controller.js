@@ -5,6 +5,7 @@ import APIResponse from "../utils/apiResponse.js";
 import { generateAccessToken, generateRefereshToken } from "../utils/generateTokens.js";
 import { forgotPasswordMailTemplate } from '../utils/emailTemplates.js';
 import { sendEmailService } from '../utils/emailService.js';
+import { generateHashPassword } from '../utils/generateHashPassword.js';
 
 const CookieOptions = {
     httpOnly: false, // It is Modifiable only from server
@@ -247,7 +248,7 @@ export async function forgotPasswordMail(request,response){
         }
 
         const authTokens = await authTokenModel.findOne({user_id : registeredUser._id});
-
+        console.log(authTokens);
         const payload = {
             userName : registeredUser.userName,
             access_token : authTokens.access_token
@@ -277,9 +278,17 @@ export async function forgotPasswordMail(request,response){
  */
 export async function resetPassword(request,response){
     try {
-        
+        const {new_password} = request.body;
+        if(request.user_id){
+            let hash = await generateHashPassword(new_password);
+            let resetPassword = await userModel.findByIdAndUpdate(request.user_id,{$set : {
+                password : hash
+            }});
+            response.status(201).json(new APIResponse(201,{},"Password Updated Successfully !"));
+        }
     } catch (error) {
-        
+        console.log("Resetpassword Error : " , error);
+        return response.status(405).json(new APIResponse(405,{},"Something went Wrong !"));
     }
 }
 
