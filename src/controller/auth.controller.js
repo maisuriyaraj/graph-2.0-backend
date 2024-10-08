@@ -3,9 +3,11 @@ import { authTokenModel } from "../models/authTokens.model.js";
 import { userModel } from "../models/users.model.js";
 import APIResponse from "../utils/apiResponse.js";
 import { generateAccessToken, generateRefereshToken } from "../utils/generateTokens.js";
-import { forgotPasswordMailTemplate } from '../utils/emailTemplates.js';
+import { forgotPasswordMailTemplate, Send2FAOTPMail } from '../utils/emailTemplates.js';
 import { sendEmailService } from '../utils/emailService.js';
-import { generateHashPassword } from '../utils/generateHashPassword.js';
+import { comparePassword, generateHashPassword } from '../utils/generateHashPassword.js';
+import { otpVerificationModel } from '../models/otpVerification.model.js';
+import { generateOTP } from '../utils/helperFunctions.js';
 
 const CookieOptions = {
     httpOnly: false, // It is Modifiable only from server
@@ -26,8 +28,9 @@ export async function Login(request, response) {
          * 2. check Fields Vaidation
          * 3. check user is exists or not
          * 4. Check password 
-         * 5. If user Exists and password is Right than Generate Access token and Referesh token
-         * 6. Send Access token and Referesh Token in cookie
+         * 5. If User has Enabled 2FA Authentication than send him OTP code to 2FA Authentication 
+         * 6. If user Exists and password is Right than Generate Access token and Referesh token
+         * 7. Send Access token and Referesh Token in cookie
          */
 
         /**
@@ -61,45 +64,76 @@ export async function Login(request, response) {
          * 4. Check User Password
          */
 
-        const isValidCredentials = await  userDetails.isPasswordCorrect(password);
+        const isValidCredentials = await userDetails.isPasswordCorrect(password);
 
         if (!isValidCredentials) {
             return response.status(403).json(new APIResponse(403, {}, "Invalid credentials !, Please Check your credentials ."));
         }
 
         /**
-         * 5. Generate Access Token and Referesh token
+         * 5. If User has Enabled 2FA Authentication than send him OTP code to 2FA Authentication 
          */
 
-        const access_token = await generateAccessToken(userDetails);
-        const referesh_token = await generateRefereshToken(userDetails);
+        if (!userDetails.TwoFAEnabled) {
+            /**
+       * 6. Generate Access Token and Referesh token
+       */
+            const access_token = await generateAccessToken(userDetails);
+            const referesh_token = await generateRefereshToken(userDetails);
 
-        const collectionToken = await authTokenModel.findOne({user_id: userDetails._id});
-        if(collectionToken){
-            await authTokenModel.findOneAndUpdate({user_id: userDetails._id},{$set:{
-                access_token: access_token, referesh_token: referesh_token
-            }});
-        }else{
-            const collection = await authTokenModel.create({ user_id: userDetails._id, access_token: access_token, referesh_token: referesh_token });
-            const result = await collection.save();
+            const collectionToken = await authTokenModel.findOne({ user_id: userDetails._id });
+            if (collectionToken) {
+                await authTokenModel.findOneAndUpdate({ user_id: userDetails._id }, {
+                    $set: {
+                        access_token: access_token, referesh_token: referesh_token
+                    }
+                });
+            } else {
+                const collection = await authTokenModel.create({ user_id: userDetails._id, access_token: access_token, referesh_token: referesh_token });
+                const result = await collection.save();
+            }
+
+            // Send Cookies 
+            // 1. Generate Options
+
+
+            const mainUserDetails = await userModel.findById(userDetails._id).select("-password -groups -communities -queries -posts -bio -background_cover -profile_picture -phone_number -googleAccount");
+
+            return response.status(201).cookie("access_token", access_token, CookieOptions).cookie("referesh_token", referesh_token, CookieOptions).json(
+                new APIResponse(201, {
+                    user: mainUserDetails,
+                    access_token,
+                    referesh_token
+                })
+            );
         }
 
-        // Send Cookies 
-        // 1. Generate Options
-       
+        if (userDetails.TwoFAEnabled) {
 
-        const mainUserDetails = await userModel.findById(userDetails._id).select("-password -groups -communities -queries -posts -bio -background_cover -profile_picture -phone_number -googleAccount");
+            let otp = generateOTP();
+            let template = Send2FAOTPMail(userDetails,otp);
 
-        return response.status(201).cookie("access_token", access_token, CookieOptions).cookie("referesh_token", referesh_token, CookieOptions).json(
-            new APIResponse(201, {
-                user: mainUserDetails,
-                access_token,
-                referesh_token
-            })
-        );
+            /**
+                 * Send Email to the User
+             */
 
+             sendEmailService(email, template);
+             // Generate Hash of OTP and Save in Database
+             let hashOTP = await generateHashPassword(otp);
+
+            await otpVerificationModel.create({
+                userId : userDetails._id,
+                otp : hashOTP
+            });
+
+            return response.status(201).json(
+                new APIResponse(201, {
+                    TwoFAEnabled: true,user : userDetails._id
+                }, "OTP Sent Successfully !")
+            );
+        }
     } catch (error) {
-        console.log("Login Error : ",error);
+        console.log("Login Error : ", error);
         response.status(405).json(new APIResponse(405, {}, "Something went Wrong !"));
     }
 }
@@ -157,7 +191,7 @@ export async function Registration(request, response) {
         // const result = await collection.save();
         return response.status(201).json(new APIResponse(201, {}, "User Created Successfully !"));
     } catch (error) {
-        console.log("Registration error : " , error);
+        console.log("Registration error : ", error);
         return response.status(405).json(new APIResponse(405, {}, "Something went Wrong !"));
     }
 }
@@ -168,17 +202,19 @@ export async function Registration(request, response) {
  * @param {*} response 
     @returns JSON RESPONSE TO USER
  */
-export async function LogoutUser(request,response){
+export async function LogoutUser(request, response) {
     try {
-        const expireAuthToken = await authTokenModel.findOneAndUpdate({user_id : request.user_id},{$set : {
-            referesh_token : null
-        }},{
-            new : true
+        const expireAuthToken = await authTokenModel.findOneAndUpdate({ user_id: request.user_id }, {
+            $set: {
+                referesh_token: null
+            }
+        }, {
+            new: true
         });
-        return response.status(200).clearCookie("access_token",CookieOptions).clearCookie("referesh_token",CookieOptions).json( new APIResponse(200,{},"User Loggedout Successfully !"));
+        return response.status(200).clearCookie("access_token", CookieOptions).clearCookie("referesh_token", CookieOptions).json(new APIResponse(200, {}, "User Loggedout Successfully !"));
     } catch (error) {
-        console.log("Logout User Error : " , error);
-        return response.status(405).json(new APIResponse(405,{},"Something went Wrong !"));
+        console.log("Logout User Error : ", error);
+        return response.status(405).json(new APIResponse(405, {}, "Something went Wrong !"));
     }
 }
 
@@ -188,39 +224,39 @@ export async function LogoutUser(request,response){
  * @param {*} response 
  * @returns JSON RESPONSE TO USER
  */
-export async function regenerateAccessToken(request,response){
+export async function regenerateAccessToken(request, response) {
     try {
-        const incomingRefereshToken =  request?.body?.referesh_token ;
-        if(!incomingRefereshToken){
-            return response.status(403).json(new APIResponse(403,{},"Please Provide Referesh Token !"));
+        const incomingRefereshToken = request?.body?.referesh_token;
+        if (!incomingRefereshToken) {
+            return response.status(403).json(new APIResponse(403, {}, "Please Provide Referesh Token !"));
         }
 
-        let varifiedToken = jwt.verify(incomingRefereshToken,process.env.REFERESH_TOKEN_SECREATE);
+        let varifiedToken = jwt.verify(incomingRefereshToken, process.env.REFERESH_TOKEN_SECREATE);
 
-        if(!varifiedToken){
-            return response.status(403).json(new APIResponse(403,{},"Unauthorized Request !"));
+        if (!varifiedToken) {
+            return response.status(403).json(new APIResponse(403, {}, "Unauthorized Request !"));
         }
 
-        let user = await userModel.findOne({_id:varifiedToken.userID}).select("-password");
+        let user = await userModel.findOne({ _id: varifiedToken.userID }).select("-password");
 
-        if(!user){
-            return response.status(403).json(new APIResponse(403,{},"Unauthorized Access !"));
+        if (!user) {
+            return response.status(403).json(new APIResponse(403, {}, "Unauthorized Access !"));
         }
 
         let newRefereshToken = await generateRefereshToken(user);
         let newAccessToken = await generateAccessToken(user);
 
-        let collection = await authTokenModel.findOneAndUpdate({user_id:user._id},{$set:{access_token:newAccessToken}},{new : true});
+        let collection = await authTokenModel.findOneAndUpdate({ user_id: user._id }, { $set: { access_token: newAccessToken } }, { new: true });
 
-        return response.status(201).cookie("access_token", newAccessToken, CookieOptions).cookie("referesh_token", collection.referesh_token, CookieOptions).json(new APIResponse(201,{
-            access_token : newAccessToken,
-            
-        },"New Access Token Generated Successfully !"));
+        return response.status(201).cookie("access_token", newAccessToken, CookieOptions).cookie("referesh_token", collection.referesh_token, CookieOptions).json(new APIResponse(201, {
+            access_token: newAccessToken,
 
-      
+        }, "New Access Token Generated Successfully !"));
+
+
     } catch (error) {
-        console.log("Regenerate Access Token Error : " , error);
-        return response.status(405).json(new APIResponse(405,{},"Something went Wrong !"));
+        console.log("Regenerate Access Token Error : ", error);
+        return response.status(405).json(new APIResponse(405, {}, "Something went Wrong !"));
     }
 }
 
@@ -230,28 +266,28 @@ export async function regenerateAccessToken(request,response){
  * @param {*} response 
  * @returns @returns JSON RESPONSE TO USER
  */
-export async function forgotPasswordMail(request,response){
+export async function forgotPasswordMail(request, response) {
     try {
-        
+
         // Get user Email from req.body
         // Check the Email is Registered or not 
         // If teh email is Registered than Send Link for Reset password Via Email
 
-        const {email} = request.body;
-        if(!email){
-            return response.status(403).json(new APIResponse(403,{},"Email is Required !"));
+        const { email } = request.body;
+        if (!email) {
+            return response.status(403).json(new APIResponse(403, {}, "Email is Required !"));
         }
-        const registeredUser = await userModel.findOne({email:email}).select('-password -groups -communities -posts -queries');
+        const registeredUser = await userModel.findOne({ email: email }).select('-password -groups -communities -posts -queries');
 
-        if(!registeredUser){
-            return response.status(403).json(new APIResponse(403,{},"User is Not Registered !"));
+        if (!registeredUser) {
+            return response.status(403).json(new APIResponse(403, {}, "User is Not Registered !"));
         }
 
-        const authTokens = await authTokenModel.findOne({user_id : registeredUser._id});
+        const authTokens = await authTokenModel.findOne({ user_id: registeredUser._id });
         console.log(authTokens);
         const payload = {
-            userName : registeredUser.userName,
-            access_token : authTokens.access_token
+            userName: registeredUser.userName,
+            access_token: authTokens.access_token
         }
 
         let emailTemplate = forgotPasswordMailTemplate(payload);
@@ -260,13 +296,13 @@ export async function forgotPasswordMail(request,response){
          * Send Email to the User
          */
 
-        sendEmailService(email,emailTemplate);
+        sendEmailService(email, emailTemplate);
 
-        return response.status(201).json(new APIResponse(201,{},"Email Sent Successfully !"));
+        return response.status(201).json(new APIResponse(201, {}, "Email Sent Successfully !"));
 
     } catch (error) {
-        console.log("Regenerate Access Token Error : " , error);
-        return response.status(405).json(new APIResponse(405,{},"Something went Wrong !"));
+        console.log("Regenerate Access Token Error : ", error);
+        return response.status(405).json(new APIResponse(405, {}, "Something went Wrong !"));
     }
 }
 
@@ -276,36 +312,24 @@ export async function forgotPasswordMail(request,response){
  * @param {*} response 
  * @returns JSON RESPONSE TO USER
  */
-export async function resetPassword(request,response){
+export async function resetPassword(request, response) {
     try {
-        const {new_password} = request.body;
-        if(request.user_id){
+        const { new_password } = request.body;
+        if (request.user_id) {
             let hash = await generateHashPassword(new_password);
-            let resetPassword = await userModel.findByIdAndUpdate(request.user_id,{$set : {
-                password : hash
-            }});
-            response.status(201).json(new APIResponse(201,{},"Password Updated Successfully !"));
+            let resetPassword = await userModel.findByIdAndUpdate(request.user_id, {
+                $set: {
+                    password: hash
+                }
+            });
+            response.status(201).json(new APIResponse(201, {}, "Password Updated Successfully !"));
         }
     } catch (error) {
-        console.log("Resetpassword Error : " , error);
-        return response.status(405).json(new APIResponse(405,{},"Something went Wrong !"));
+        console.log("Resetpassword Error : ", error);
+        return response.status(405).json(new APIResponse(405, {}, "Something went Wrong !"));
     }
 }
 
-/**
- * @description Send 2FA OTP mail
- * @param {*} request 
- * @param {*} response 
- * @returns JSON RESPONSE TO USER
- */
-
-export async function Send2FAOTPMail(request,response){
-    try {
-        
-    } catch (error) {
-        
-    }
-}
 
 /**
  * @description Verify 2FA OTP
@@ -314,9 +338,100 @@ export async function Send2FAOTPMail(request,response){
  * @returns JSON RESPONSE TO USER
  */
 
-export async function Verify2FAOtp(request,response){
+export async function Verify2FAOtp(request, response) {
     try {
-        
+        const {userId,otp} = request.body;
+        if(!otp){
+            return response.status().json(new APIResponse(401,{},"OTP can not be Empty"));
+        }
+
+        let otpDetails = await otpVerificationModel.findOne({userId : userId});
+
+        if(otpDetails.createdAt){
+            if (Date(otpDetails.createdAt) < Date.now()) {
+                return response.status(401).json(new APIResponse(401,{},"OTP is Expired !")); // OTP is expired
+            }
+            
+            let isVerifiedPassword = await comparePassword(otp,otpDetails.otp);
+
+            if(!isVerifiedPassword){
+                return response.status(401).json(new APIResponse(401,{},"Invalid OTP ! Please Check your inbox !"));
+            }
+
+            const mainUserDetails = await userModel.findById(userId).select("-password -groups -communities -queries -posts -bio -background_cover -profile_picture -phone_number -googleAccount");
+
+
+            const access_token = await generateAccessToken(mainUserDetails);
+            const referesh_token = await generateRefereshToken(mainUserDetails);
+
+            const collectionToken = await authTokenModel.findOne({ user_id: mainUserDetails._id });
+            if (collectionToken) {
+                await authTokenModel.findOneAndUpdate({ user_id: mainUserDetails._id }, {
+                    $set: {
+                        access_token: access_token, referesh_token: referesh_token
+                    }
+                });
+            } else {
+                const collection = await authTokenModel.create({ user_id: mainUserDetails._id, access_token: access_token, referesh_token: referesh_token });
+                const result = await collection.save();
+            }
+
+            await otpVerificationModel.deleteMany({userId : userId});
+
+            return response.status(201).cookie("access_token", access_token, CookieOptions).cookie("referesh_token", referesh_token, CookieOptions).json(
+                new APIResponse(201, {
+                    user: mainUserDetails,
+                    access_token,
+                    referesh_token
+                })
+            );
+
+        }
+    } catch (error) {
+        console.log("Verify OTP Error : ", error);
+        return response.status(405).json(new APIResponse(405, {}, "Something went Wrong !"));
+    }
+}
+
+/**
+ * @description Resend OTP
+ * 
+ */
+
+export async function ResendOtp(request,response){
+    try {
+        const {userId} = request.body;
+
+        const userDetails = await userModel.findById(userId);
+
+        if(!userDetails){
+            return response.status(401).json(new APIResponse(401,{},"user Not Exists !"));
+        }
+
+        await otpVerificationModel.deleteMany({userId : userId});
+
+        let otp = generateOTP();
+        let template = Send2FAOTPMail(userDetails,otp);
+
+        /**
+             * Send Email to the User
+         */
+
+         sendEmailService(userDetails.email, template);
+         // Generate Hash of OTP and Save in Database
+         let hashOTP = await generateHashPassword(otp);
+
+        await otpVerificationModel.create({
+            userId : userDetails._id,
+            otp : hashOTP
+        });
+
+        return response.status(201).json(
+            new APIResponse(201, {
+                TwoFAEnabled: true,user : userDetails._id
+            }, "OTP Sent Successfully !")
+        );
+
     } catch (error) {
         
     }

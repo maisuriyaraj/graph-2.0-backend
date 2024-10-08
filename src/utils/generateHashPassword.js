@@ -8,3 +8,13 @@ export async function generateHashPassword(password){
         console.log("Generate Hash Password Error : ",error);
     }
 }
+
+export async function comparePassword(password,HashPassword){
+    try {
+        const isMatch = await bcrypt.compare(password,HashPassword);
+        return isMatch;
+    } catch (error) {
+        console.log("Compare TWO password Error : ",error);
+        
+    }
+}
