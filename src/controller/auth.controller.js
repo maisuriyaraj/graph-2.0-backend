@@ -341,51 +341,55 @@ export async function resetPassword(request, response) {
 export async function Verify2FAOtp(request, response) {
     try {
         const {userId,otp} = request.body;
-        if(!otp){
+        if(!otp || otp == undefined){
             return response.status().json(new APIResponse(401,{},"OTP can not be Empty"));
         }
 
         let otpDetails = await otpVerificationModel.findOne({userId : userId});
 
-        if(otpDetails.createdAt){
-            if (Date(otpDetails.createdAt) < Date.now()) {
-                return response.status(401).json(new APIResponse(401,{},"OTP is Expired !")); // OTP is expired
-            }
-            
-            let isVerifiedPassword = await comparePassword(otp,otpDetails.otp);
-
-            if(!isVerifiedPassword){
-                return response.status(401).json(new APIResponse(401,{},"Invalid OTP ! Please Check your inbox !"));
-            }
-
-            const mainUserDetails = await userModel.findById(userId).select("-password -groups -communities -queries -posts -bio -background_cover -profile_picture -phone_number -googleAccount");
-
-
-            const access_token = await generateAccessToken(mainUserDetails);
-            const referesh_token = await generateRefereshToken(mainUserDetails);
-
-            const collectionToken = await authTokenModel.findOne({ user_id: mainUserDetails._id });
-            if (collectionToken) {
-                await authTokenModel.findOneAndUpdate({ user_id: mainUserDetails._id }, {
-                    $set: {
-                        access_token: access_token, referesh_token: referesh_token
-                    }
-                });
-            } else {
-                const collection = await authTokenModel.create({ user_id: mainUserDetails._id, access_token: access_token, referesh_token: referesh_token });
-                const result = await collection.save();
-            }
-
-            await otpVerificationModel.deleteMany({userId : userId});
-
-            return response.status(201).cookie("access_token", access_token, CookieOptions).cookie("referesh_token", referesh_token, CookieOptions).json(
-                new APIResponse(201, {
-                    user: mainUserDetails,
-                    access_token,
-                    referesh_token
-                })
-            );
-
+        if(otpDetails){
+            if(otpDetails.createdAt){
+                if (Date(otpDetails.createdAt) < Date.now()) {
+                    return response.status(401).json(new APIResponse(401,{},"OTP is Expired !")); // OTP is expired
+                }
+                
+                let isVerifiedPassword = await comparePassword(otp,otpDetails.otp);
+    
+                if(!isVerifiedPassword){
+                    return response.status(401).json(new APIResponse(401,{},"Invalid OTP ! Please Check your inbox !"));
+                }
+    
+                const mainUserDetails = await userModel.findById(userId).select("-password -groups -communities -queries -posts -bio -background_cover -profile_picture -phone_number -googleAccount");
+    
+    
+                const access_token = await generateAccessToken(mainUserDetails);
+                const referesh_token = await generateRefereshToken(mainUserDetails);
+    
+                const collectionToken = await authTokenModel.findOne({ user_id: mainUserDetails._id });
+                if (collectionToken) {
+                    await authTokenModel.findOneAndUpdate({ user_id: mainUserDetails._id }, {
+                        $set: {
+                            access_token: access_token, referesh_token: referesh_token
+                        }
+                    });
+                } else {
+                    const collection = await authTokenModel.create({ user_id: mainUserDetails._id, access_token: access_token, referesh_token: referesh_token });
+                    const result = await collection.save();
+                }
+    
+                await otpVerificationModel.deleteMany({userId : userId});
+    
+                return response.status(201).cookie("access_token", access_token, CookieOptions).cookie("referesh_token", referesh_token, CookieOptions).json(
+                    new APIResponse(201, {
+                        user: mainUserDetails,
+                        access_token,
+                        referesh_token
+                    })
+                );
+    
+            } 
+        }else{
+            return response.status(405).json(new APIResponse(405, {}, "Something went Wrong !"));    
         }
     } catch (error) {
         console.log("Verify OTP Error : ", error);
