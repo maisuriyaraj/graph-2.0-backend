@@ -21,8 +21,10 @@ app.use(cookieParser());
 
 import { authRoute } from './routes/auth.routes.js';
 import mongoose from 'mongoose';
+import { fetchRoute } from './routes/fetch.routes.js';
 
 app.use('/api/v1',authRoute);
+app.use('/api/fetch',fetchRoute);
 
 
 export default app;

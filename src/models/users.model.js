@@ -30,9 +30,9 @@ const userSchema = new mongoose.Schema({
         type:mongoose.Schema.Types.ObjectId,
         ref : 'posts'
     }],
-    queries : [{
+    questions : [{
         type : mongoose.Schema.Types.ObjectId,
-        ref : 'queries'
+        ref : 'questions'
     }]
 }, { timestamps: true });
 
