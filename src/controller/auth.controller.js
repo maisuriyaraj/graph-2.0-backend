@@ -342,7 +342,7 @@ export async function Verify2FAOtp(request, response) {
     try {
         const {userId,otp} = request.body;
         if(!otp || otp == undefined){
-            return response.status().json(new APIResponse(401,{},"OTP can not be Empty"));
+            return response.status(401).json(new APIResponse(401,{},"OTP can not be Empty"));
         }
 
         let otpDetails = await otpVerificationModel.findOne({userId : userId});

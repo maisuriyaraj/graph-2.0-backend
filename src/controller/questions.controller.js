@@ -1,5 +1,6 @@
 import puppeteer from 'puppeteer';
 import questionsModel from '../models/questions.model.js';
+import APIResponse from '../utils/apiResponse.js';
 
 /**
  * Fetch Questions List from StackOverflowd
@@ -39,7 +40,21 @@ export async function fetchDataFromStackOverflow(request, response) {
         response.send({ data: result });
 
     } catch (error) {
-        console.error('Error occurred while fetching data: ', error);
+        console.error('Error occurred while fetching data from stackoverflow: ', error);
         response.status(500).send({ error: 'Internal Server Error' });
+    }
+}
+
+export async function getQuestions(request,response){
+    try {
+        const page = request?.query?.page || 1;
+        const limit = request?.query?.limit || 10;
+        const resultData = await questionsModel.find({}).skip(page * limit).limit(limit).exec();
+
+        response.status(201).json(new APIResponse(201,resultData,"Questions Fetched Successfully !"));
+    } catch (error) {
+        console.log("Error While fetching Questions :",error);
+        response.status(500).send({ error: 'Internal Server Error' });
+
     }
 }
