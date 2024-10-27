@@ -17,3 +17,11 @@ export async function generateRefereshToken(data){
     },process.env.REFERESH_TOKEN_SECREATE,
     {expiresIn:process.env.REFERESH_TOKEN_EXPIRY})
 }
+
+
+export async function generateResetPasswordToken(data){
+    return jwt.sign({
+        userID : data._id
+    },process.env.RESET_PASSWORD_SECREATE,
+    {expiresIn : '30m'})
+}

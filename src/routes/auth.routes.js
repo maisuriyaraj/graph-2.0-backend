@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { forgotPasswordMail, Login, LogoutUser, regenerateAccessToken, Registration, ResendOtp, resetPassword, Verify2FAOtp } from "../controller/auth.controller.js";
 import { verifyJWT } from "../middlewares/verifyJwt.middleware.js";
+import { verifyResetPasswordToken } from "../middlewares/verifyJwtforResetPassword.middleware.js";
 
 const authRoute = Router();
 
@@ -15,7 +16,7 @@ authRoute.route('/resendOtp').post(ResendOtp);
  */
 
 authRoute.route('/logout').post(verifyJWT,LogoutUser);
-authRoute.route('/resetPassword').post(verifyJWT,resetPassword);
+authRoute.route('/resetPassword').post(verifyResetPasswordToken,resetPassword);
 
 export {authRoute};
 

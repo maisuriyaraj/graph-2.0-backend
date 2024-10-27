@@ -2,7 +2,7 @@ import jwt from 'jsonwebtoken';
 import { authTokenModel } from "../models/authTokens.model.js";
 import { userModel } from "../models/users.model.js";
 import APIResponse from "../utils/apiResponse.js";
-import { generateAccessToken, generateRefereshToken } from "../utils/generateTokens.js";
+import { generateAccessToken, generateRefereshToken, generateResetPasswordToken } from "../utils/generateTokens.js";
 import { forgotPasswordMailTemplate, Send2FAOTPMail } from '../utils/emailTemplates.js';
 import { sendEmailService } from '../utils/emailService.js';
 import { comparePassword, generateHashPassword } from '../utils/generateHashPassword.js';
@@ -243,7 +243,6 @@ export async function regenerateAccessToken(request, response) {
             return response.status(403).json(new APIResponse(403, {}, "Unauthorized Access !"));
         }
 
-        let newRefereshToken = await generateRefereshToken(user);
         let newAccessToken = await generateAccessToken(user);
 
         let collection = await authTokenModel.findOneAndUpdate({ user_id: user._id }, { $set: { access_token: newAccessToken } }, { new: true });
@@ -283,11 +282,12 @@ export async function forgotPasswordMail(request, response) {
             return response.status(403).json(new APIResponse(403, {}, "User is Not Registered !"));
         }
 
-        const authTokens = await authTokenModel.findOne({ user_id: registeredUser._id });
-        console.log(authTokens);
+        const resetPasswordToken = await generateResetPasswordToken(registeredUser._id);
+
+        const authTokens = await authTokenModel.findOneAndUpdate({ user_id: registeredUser._id },{$set : {resetPasswordToken : resetPasswordToken}},{upsert : true});
         const payload = {
             userName: registeredUser.userName,
-            access_token: authTokens.access_token
+            resetPasswordToken: resetPasswordToken
         }
 
         let emailTemplate = forgotPasswordMailTemplate(payload);
@@ -322,6 +322,16 @@ export async function resetPassword(request, response) {
                     password: hash
                 }
             });
+
+            const authTokens = await authTokenModel.findOne({ user_id:request.user_id  });
+
+            // Use the `unset` method to remove the field
+            authTokens.unset('fieldNameToRemove');
+
+            await authTokens.save();
+
+
+
             response.status(201).json(new APIResponse(201, {}, "Password Updated Successfully !"));
         }
     } catch (error) {

@@ -7,6 +7,8 @@ const authTokenSchema = new mongoose.Schema({
     fcm_token : { type : String ,default : ''},
     access_token : {type:String , default : ''},
     referesh_token : { type : String , default : ''}
+} ,{
+    strict : false
 });
 
 // Inject Plugin to use Mongoose Aggregate Queries  
