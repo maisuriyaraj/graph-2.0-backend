@@ -7,32 +7,36 @@ const userSchema = new mongoose.Schema({
         type: String,
         unique: true,
         match: [/.+\@.+\..+/, 'Please fill a valid email address'],
-        trim:true
+        trim: true
     },
-    userName: { type: String, default: '' ,unique:true,lowercase:true,trim:true,index:true}, // Default value to avoid null
-    fullName: { type : String , default : null,trim:true},
-    password: { type: String , required:true },
+    userName: { type: String, default: '', unique: true, lowercase: true, trim: true, index: true }, // Default value to avoid null
+    fullName: { type: String, default: null, trim: true },
+    password: { type: String, required: true },
     googleAccount: { type: Boolean, default: false },
     phone_number: { type: String, default: null },
-    TwoFAEnabled : { type : Boolean,default : false},
+    TwoFAEnabled: { type: Boolean, default: false },
     profile_picture: { type: String, default: null },
     background_cover: { type: String, default: null },
     bio: { type: String, default: null },
     groups: [{
-        type : mongoose.Schema.Types.ObjectId,
-        ref : 'groups'
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'groups'
     }],
-    communities : [{
-        type:mongoose.Schema.Types.ObjectId,
-        ref:'communities'
+    communities: [{
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'communities'
     }],
-    posts : [{
-        type:mongoose.Schema.Types.ObjectId,
-        ref : 'posts'
+    posts: [{
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'posts'
     }],
-    questions : [{
-        type : mongoose.Schema.Types.ObjectId,
-        ref : 'questions'
+    questions: [{
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'questions'
+    }],
+    articles: [{
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'articles'
     }]
 }, { timestamps: true });
 
@@ -40,19 +44,19 @@ const userSchema = new mongoose.Schema({
 userSchema.plugin(mongooseAggregatePaginate);
 
 // Generate Hash Password Before Save in Database
-userSchema.pre("save",async function (next){
-    if(!this.isModified("password")){
+userSchema.pre("save", async function (next) {
+    if (!this.isModified("password")) {
         return next();
     }
 
-    this.password = await bcrypt.hash(this.password,10);
+    this.password = await bcrypt.hash(this.password, 10);
     next();
 });
 
 // Create Custom mongoose Method for password Checking
 
-userSchema.methods.isPasswordCorrect = async function (password){
-    return await bcrypt.compare(password,this.password);
+userSchema.methods.isPasswordCorrect = async function (password) {
+    return await bcrypt.compare(password, this.password);
 }
 
-export const userModel =  mongoose.model('users', userSchema);
+export const userModel = mongoose.model('users', userSchema);

@@ -1,5 +1,5 @@
 import puppeteer from 'puppeteer';
-import questionsModel from '../models/questions.model.js';
+import {questionsModel} from '../models/questions.model.js';
 import APIResponse from '../utils/apiResponse.js';
 
 /**
@@ -50,8 +50,14 @@ export async function getQuestions(request,response){
         const page = request?.query?.page || 1;
         const limit = request?.query?.limit || 10;
         const resultData = await questionsModel.find({}).skip(page * limit).limit(limit).exec();
+        const count = await questionsModel.countDocuments({});
 
-        response.status(201).json(new APIResponse(201,resultData,"Questions Fetched Successfully !"));
+        const data = {
+            mainData : resultData,
+            count : count
+        }
+
+        response.status(201).json(new APIResponse(201,data,"Questions Fetched Successfully !"));
     } catch (error) {
         console.log("Error While fetching Questions :",error);
         response.status(500).send({ error: 'Internal Server Error' });
